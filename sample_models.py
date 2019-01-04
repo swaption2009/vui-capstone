@@ -1,7 +1,7 @@
 from keras import backend as K
 from keras.models import Model
 from keras.layers import (BatchNormalization, Conv1D, Dense, Input, 
-    TimeDistributed, Activation, Bidirectional, SimpleRNN, GRU, LSTM)
+    TimeDistributed, Activation, Bidirectional, SimpleRNN, GRU, LSTM, Dropout)
 
 def simple_rnn_model(input_dim, output_dim=29):
     """ Build a recurrent network for speech 
@@ -108,7 +108,7 @@ def deep_rnn_model(input_dim, units, recur_layers, output_dim=29):
         return_sequences=True, implementation=2, name='rnn')(bn_rnn_2)
     bn_rnn_3 = BatchNormalization()(simp_rnn_3)
     # TODO: Add a TimeDistributed(Dense(output_dim)) layer
-    time_dense = TimeDistributed(Dense(output_dim))(bn_rnn_3_
+    time_dense = TimeDistributed(Dense(output_dim))(bn_rnn_3)
     # Add softmax activation layer
     y_pred = Activation('softmax', name='softmax')(time_dense)
     # Specify the model
@@ -135,18 +135,42 @@ def bidirectional_rnn_model(input_dim, units, output_dim=29):
     print(model.summary())
     return model
 
-def final_model():
+def final_model(input_dim, filters, kernel_size, conv_stride, conv_border_mode, units, output_dim=29):
     """ Build a deep network for speech 
     """
     # Main acoustic input
     input_data = Input(name='the_input', shape=(None, input_dim))
     # TODO: Specify the layers in your network
-    ...
+        # Add convolutional layer
+    conv_1d = Conv1D(filters, kernel_size, 
+                     strides=conv_stride, 
+                     padding=conv_border_mode,
+                     activation='relu',
+                     name='conv1d')(input_data)
+    # Add batch normalization
+    bn_cnn = BatchNormalization(name='bn_conv_1d')(conv_1d)
+    # Add a recurrent layer
+    bidir_gru1 = Bidirectional(GRU(units, activation='relu', 
+                                   return_sequences=True, implementation=2, name='bidir_gru1'))(bn_cnn)
+    bn_rnn1 = BatchNormalization()(bidir_gru1)
+    dropout1 = Dropout(0.2)(bn_rnn1)
+    # Add a second recurrent layer
+    bidir_gru2 = Bidirectional(GRU(units, activation='relu',
+                                   return_sequences=True, implementation=2, name='bidir_gru2'))(dropout1)
+    bn_rnn2 = BatchNormalization()(bidir_gru2)
+    dropout2 = Dropout(0.2)(bn_rnn2)
+    # Add a third recurrent layer
+    bidir_gru3 = Bidirectional(GRU(units, activation='relu',
+                                   return_sequences=True, implementation=2, name='bidir_gru3'))(dropout2)
+    bn_rnn3 = BatchNormalization()(bidir_gru3)
+    dropout3 = Dropout(0.2)(bn_rnn3)
+    # TODO: Add a TimeDistributed(Dense(output_dim)) layer
+    time_dense = TimeDistributed(Dense(output_dim))(dropout3)    
     # TODO: Add softmax activation layer
-    y_pred = ...
+    y_pred = Activation('softmax', name='softmax')(time_dense)
     # Specify the model
     model = Model(inputs=input_data, outputs=y_pred)
     # TODO: Specify model.output_length
-    model.output_length = ...
+    model.output_length = lambda x: cnn_output_length(x, kernel_size, conv_border_mode, conv_stride)
     print(model.summary())
     return model
